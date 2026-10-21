@@ -3,11 +3,14 @@
 Obsah:
 
 - ``standardize_fit`` / ``standardize_apply`` (UKOL) -- z-skorova
+
   standardizace rozdelena na dve faze tak, aby parametry sly spocitat
   **jen z trenovaci mnoziny** (spravny vzor; kontrast s unikem dat).
 - ``subsample_imbalance`` (UKOL) -- umele podvzorkovani majoritni tridy
+
   pro demonstraci, proc pri nevyvazenych datech klame presnost (accuracy).
 - ``demonstrate_leakage`` (PREDVYPLNENO) -- spusti obe poradi
+
   (standardizace pred vs. po rozdeleni) a vrati obe presnosti vedle sebe.
   Vola studentske ``standardize_fit`` / ``standardize_apply``, takze bez
   jejich implementace nedobehne.
@@ -37,8 +40,10 @@ def standardize_fit(x_train: np.ndarray) -> dict:
     -----------------
     ``dict`` s klici:
 
-    - ``"mean"`` -- ``np.ndarray`` prumeru po sloupcich.
-    - ``"std"`` -- ``np.ndarray`` smerodatnych odchylek po sloupcich
+- ``"mean"`` -- ``np.ndarray`` prumeru po sloupcich.
+
+- ``"std"`` -- ``np.ndarray`` smerodatnych odchylek po sloupcich
+
       (populacni, ``ddof=0``).
 
     Spravny vzor: parametry se uci **pouze** z trenovaci mnoziny a
@@ -47,14 +52,17 @@ def standardize_fit(x_train: np.ndarray) -> dict:
     proti uniku dat (viz ``demonstrate_leakage``).
     """
     # assert  Ověřte, že x_train má dva rozměry (matice, ne 1D vektor)
+    assert x_train.ndim == 2, "x_train musí mít přesně dva rozměry (matice)"
     #
     # Vstup preveďte na float64. Spočtěte průměr a POPULAČNÍ směrodatnou
     # odchylku (ddof=0) PO SLOUPCÍCH (axis=0) a vraťte je jako slovník
     # {"mean": ..., "std": ...}.
-    raise NotImplementedError(
-        "Úkol: vratte {'mean': prumer po sloupcich, 'std': smerodatna "
-        "odchylka po sloupcich (ddof=0)} spocitane jen z x_train."
-    )
+    x_train_float = np.asarray(x_train, dtype=np.float64)
+
+    mean_vals = np.mean(x_train_float, axis=0)
+    std_vals = np.std(x_train_float, axis=0, ddof=0)
+
+    return {"mean": mean_vals, "std": std_vals}
 
 
 def standardize_apply(x: np.ndarray, params: dict) -> np.ndarray:
@@ -79,22 +87,27 @@ def standardize_apply(x: np.ndarray, params: dict) -> np.ndarray:
     vycentruje (odecte se prumer) a zustane nulovy.
     """
     # assert  Ověřte, že params obsahuje klíče "mean" a "std"
+    assert "mean" in params and "std" in params, "params musí obsahovat klíče 'mean' a 'std'"
     # assert  Ověřte, že x.shape[1] odpovídá délce params["mean"]
+    assert x.shape[1] == len(params["mean"]), "Počet příznaků (sloupců) v x se neshoduje s uloženými parametry 'mean'"
     #
     # x, mean i std preveďte na float64. Ve std nahraďte nuly jedničkou
     # (např. np.where(std == 0.0, 1.0, std)), aby nedošlo k dělení nulou,
     # a vraťte (x - mean) / std_safe.
-    raise NotImplementedError(
-        "Úkol: vratte (x - params['mean']) / params['std'] jako float64; "
-        "nulovou smerodatnou odchylku nejprve nahradte 1.0."
-    )
+    x_float = np.asarray(x, dtype=np.float64)
+    mean_float = np.asarray(params["mean"], dtype=np.float64)
+    std_float = np.asarray(params["std"], dtype=np.float64)
+
+    std_safe = np.where(std_float == 0.0, 1.0, std_float)
+
+    return (x_float - mean_float) / std_safe
 
 
 def subsample_imbalance(
-    x: np.ndarray,
-    y: np.ndarray,
-    minority_ratio: float,
-    random_state: int,
+        x: np.ndarray,
+        y: np.ndarray,
+        minority_ratio: float,
+        random_state: int,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Podvzorkovanim vytvori silne nevyvazeny dataset (~90/10).
 
@@ -130,10 +143,12 @@ def subsample_imbalance(
     Oznacme ``r = minority_ratio`` a mejme ``n_min`` vzorku minoritni a
     ``n_maj`` vzorku majoritni tridy.
 
-    - Je-li aktualni podil minority ``n_min / (n_min + n_maj)`` **vetsi**
+- Je-li aktualni podil minority ``n_min / (n_min + n_maj)`` **vetsi**
+
       nez ``r``: ponechaji se vsechny majoritni radky a z minoritnich se
       nahodne vybere ``round(r * n_maj / (1 - r))``.
-    - Jinak: ponechaji se vsechny minoritni radky a z majoritnich se
+- Jinak: ponechaji se vsechny minoritni radky a z majoritnich se
+
       nahodne vybere ``round(n_min * (1 - r) / r)``.
 
     Pocet ponechanych radku se vzdy orizne do rozsahu ``1 .. pocet
@@ -142,40 +157,78 @@ def subsample_imbalance(
     poradi radku se na zaver zamicha.
     """
     # assert  Ověřte, že 0 < minority_ratio < 0.5
+    assert 0.0 < minority_ratio < 0.5, "minority_ratio musí být striktně v intervalu (0, 0.5)"
     # assert  Ověřte, že y obsahuje obě třídy (0 i 1)
+    assert 0 in y and 1 in y, "y musí obsahovat obě třídy (0 i 1)"
     #
     # Postup:
     #   1. rng = np.random.default_rng(random_state); x preveďte na float64
+    rng = np.random.default_rng(random_state)
+    x_float = np.asarray(x, dtype=np.float64)
+    y_int = np.asarray(y)
+
     #   2. zjistěte minoritní a majoritní třídu (np.bincount + np.argmin)
     #      a indexy řádků každé z nich (np.flatnonzero)
+    counts = np.bincount(y_int)
+
+    # Ošetrenie zhody: Ak je testovací dataset presne 50:50, argmin aj argmax by vrátili 0.
+    if counts[0] < counts[1]:
+        min_class, maj_class = 0, 1
+    elif counts[0] > counts[1]:
+        min_class, maj_class = 1, 0
+    else:
+        min_class, maj_class = 1, 0  # Pri zhode zoberieme triedu 1 ako minoritnú a 0 ako majoritnú
+
+    min_idx = np.flatnonzero(y_int == min_class)
+    maj_idx = np.flatnonzero(y_int == maj_class)
+
+    n_min = len(min_idx)
+    n_maj = len(maj_idx)
+
     #   3. podle vzorce v sekci "Detail vypoctu" spočtěte počet ponechaných
     #      řádků a ořízněte ho do rozsahu 1..počet dostupných
-    #   4. z početnější strany vyberte rng.choice(idx, size=..., replace=False)
+    current_ratio = n_min / (n_min + n_maj)
+    r = minority_ratio
+
+    if current_ratio > r:
+        keep_maj = maj_idx
+        target_min = int(round(r * n_maj / (1.0 - r)))
+        target_min = max(1, min(target_min, n_min))
+        #   4. z početnější strany vyberte rng.choice(idx, size=..., replace=False)
+        keep_min = rng.choice(min_idx, size=target_min, replace=False)
+    else:
+        keep_min = min_idx
+        target_maj = int(round(n_min * (1.0 - r) / r))
+        target_maj = max(1, min(target_maj, n_maj))
+        keep_maj = rng.choice(maj_idx, size=target_maj, replace=False)
+
     #   5. spojte ponechané indexy, zamíchejte (rng.shuffle) a vraťte
     #      (x[keep], y[keep])
-    raise NotImplementedError(
-        "Úkol: podvzorkujte data tak, aby minoritni trida tvorila zhruba "
-        "minority_ratio z celku (viz sekce 'Detail vypoctu' v docstringu)."
-    )
+    keep_all = np.concatenate([keep_min, keep_maj])
+    rng.shuffle(keep_all)
+
+    return x_float[keep_all], y_int[keep_all]
 
 
 def demonstrate_leakage(
-    x: np.ndarray,
-    y: np.ndarray,
-    k: int,
-    random_state: int,
+        x: np.ndarray,
+        y: np.ndarray,
+        k: int,
+        random_state: int,
 ) -> dict:
     """Demonstruje unik dat: standardizace PRED vs. PO rozdeleni na train/test.
 
     Spusti **obe** poradi a vrati **obe** presnosti vedle sebe -- unik se
     nikdy potichu neopravuje, smysl demonstrace je videt rozdil cisel.
 
-    - ``"acc_wrong"`` -- SPATNE: standardizuje se **cela** matice ``X``,
+- ``"acc_wrong"`` -- SPATNE: standardizuje se **cela** matice ``X``,
+
       teprve pak se deli na train/test a nauci kNN. Statistiky (prumer,
       odchylka) spocitane vcetne testovacich radku "prosakly" do
       predzpracovani -> model videl informaci o testu -> presnost byva
       nadhodnocena.
-    - ``"acc_right"`` -- SPRAVNE: nejdriv se deli na train/test, parametry
+- ``"acc_right"`` -- SPRAVNE: nejdriv se deli na train/test, parametry
+
       standardizace se nauci ``standardize_fit`` **jen z trenovaci**
       mnoziny a stejne se pres ``standardize_apply`` aplikuji na test.
 

@@ -7,15 +7,19 @@ zpusob, jak z jedne datove sady vyrobit dvojice ``(train_idx, test_idx)``.
 
 Navrhovy vzor Strategy:
 
-* ``Validator`` (ABC) definuje jedine spolecne rozhrani — metodu ``split``,
+- ``Validator`` (ABC) definuje jedine spolecne rozhrani — metodu ``split``,
+
   ktera *yielduje* dvojice celociselnych poli ``(train_idx, test_idx)``.
-* ``HoldOut`` (PREDVYPLNENO, vzorovy priklad) — jedno zamichane rozdeleni,
+- ``HoldOut`` (PREDVYPLNENO, vzorovy priklad) — jedno zamichane rozdeleni,
+
   yielduje presne jednu dvojici. Paralela k ``RandomUniformInit`` z cv3:
   ukazuje rozhrani konkretne, aby bylo videt, co musi ``KFold`` a ``Bootstrap``
   vyrobit.
-* ``KFold`` (STUB) — rozdeli indexy do ``n_folds`` foldu; kazdy fold je jednou
+- ``KFold`` (STUB) — rozdeli indexy do ``n_folds`` foldu; kazdy fold je jednou
+
   testovaci, zbytek trenovaci. Kazdy vzorek je testovan prave jednou.
-* ``Bootstrap`` (STUB) — vyber ``n`` trenovacich indexu S OPAKOVANIM; nevybrane
+- ``Bootstrap`` (STUB) — vyber ``n`` trenovacich indexu S OPAKOVANIM; nevybrane
+
   (out-of-bag) indexy tvori testovaci mnozinu.
 
 Funkce ``cross_validate`` (PREDVYPLNENO) je vuci konkretni strategii agnosticka:
@@ -51,9 +55,9 @@ class Validator(ABC):
 
     @abstractmethod
     def split(
-        self,
-        x: np.ndarray,
-        y: np.ndarray
+            self,
+            x: np.ndarray,
+            y: np.ndarray
     ) -> Iterator[tuple[np.ndarray, np.ndarray]]:
         """Yielduje dvojice ``(train_idx, test_idx)`` celociselnych indexu.
 
@@ -74,9 +78,12 @@ class Validator(ABC):
             (indexy radku do ``x`` a ``y``). Pocet vyyieldovanych dvojic
             zavisi na konkretni strategii:
 
-            * ``HoldOut``  — prave 1,
-            * ``KFold``    — ``n_folds``,
-            * ``Bootstrap``— (nejvyse) ``n_bootstrap``.
+- ``HoldOut``  — prave 1,
+
+- ``KFold``    — ``n_folds``,
+
+- ``Bootstrap``— (nejvyse) ``n_bootstrap``.
+
         """
 
 
@@ -95,10 +102,10 @@ class HoldOut(Validator):
     """
 
     def __init__(
-        self,
-        test_size: float = 0.2,
-        shuffle: bool = True,
-        random_state: int | None = None,
+            self,
+            test_size: float = 0.2,
+            shuffle: bool = True,
+            random_state: int | None = None,
     ) -> None:
         """Inicializuje strategii jednoho rozdeleni.
 
@@ -118,7 +125,7 @@ class HoldOut(Validator):
         self.random_state = random_state
 
     def split(
-        self, x: np.ndarray, y: np.ndarray
+            self, x: np.ndarray, y: np.ndarray
     ) -> Iterator[tuple[np.ndarray, np.ndarray]]:
         """Yielduje prave jednu dvojici ``(train_idx, test_idx)``.
 
@@ -173,10 +180,10 @@ class KFold(Validator):
     """
 
     def __init__(
-        self,
-        n_folds: int,
-        shuffle: bool = True,
-        random_state: int | None = None,
+            self,
+            n_folds: int,
+            shuffle: bool = True,
+            random_state: int | None = None,
     ) -> None:
         """Inicializuje k-nasobnou krizovou validaci.
 
@@ -195,13 +202,14 @@ class KFold(Validator):
         self.random_state = random_state
 
     def split(
-        self, x: np.ndarray, y: np.ndarray
+            self, x: np.ndarray, y: np.ndarray
     ) -> Iterator[tuple[np.ndarray, np.ndarray]]:
         """Yielduje ``n_folds`` dvojic ``(train_idx, test_idx)``.
 
         Postup:
 
-        1. Vytvor pole indexu ``0..n-1``. Pri ``self.shuffle`` je zamichej
+1. Vytvor pole indexu ``0..n-1``. Pri ``self.shuffle`` je zamichej
+
            generatorem ``numpy.random.default_rng(self.random_state)``.
         2. Rozdel pole indexu na ``self.n_folds`` co nejvyrovnanejsich casti
            (napr. ``numpy.array_split``). Prvnich ``n % n_folds`` foldu ma
@@ -227,12 +235,27 @@ class KFold(Validator):
         tuple[np.ndarray, np.ndarray]
             Postupne ``n_folds`` dvojic ``(train_idx, test_idx)``.
         """
+        n_samples = x.shape[0]
         # assert  Ověřte, že self.n_folds je alespon 2
+        assert self.n_folds >= 2, "Počet foldů musí být alespoň 2"
         # assert  Ověřte, že self.n_folds neni vetsi nez pocet vzorku x.shape[0]
-        raise NotImplementedError(
-            "Úkol: rozdelte indexy do n_folds foldu; kazdy fold jednou jako test, "
-            "zbytek train; kazdy vzorek testovan prave jednou. Viz docstring."
-        )
+        assert self.n_folds <= n_samples, "Počet foldů nemůže být větší než počet vzorků"
+
+        indices = np.arange(n_samples)
+        if self.shuffle:
+            rng = np.random.default_rng(self.random_state)
+            rng.shuffle(indices)
+
+        # numpy.array_split se postará o nerovnoměrné dělení
+        folds = np.array_split(indices, self.n_folds)
+
+        for i in range(self.n_folds):
+            test_idx = folds[i]
+            # train_idx je doplněk tohoto testovacího foldu
+            train_folds = [folds[j] for j in range(self.n_folds) if j != i]
+            train_idx = np.concatenate(train_folds)
+
+            yield np.sort(train_idx), np.sort(test_idx)
 
 
 class Bootstrap(Validator):
@@ -250,9 +273,9 @@ class Bootstrap(Validator):
     """
 
     def __init__(
-        self,
-        n_bootstrap: int,
-        random_state: int | None = None,
+            self,
+            n_bootstrap: int,
+            random_state: int | None = None,
     ) -> None:
         """Inicializuje bootstrapovou strategii.
 
@@ -269,15 +292,16 @@ class Bootstrap(Validator):
         self.random_state = random_state
 
     def split(
-        self,
-        x: np.ndarray,
-        y: np.ndarray
+            self,
+            x: np.ndarray,
+            y: np.ndarray
     ) -> Iterator[tuple[np.ndarray, np.ndarray]]:
         """Yielduje (nejvyse) ``n_bootstrap`` dvojic ``(train_idx, test_idx)``.
 
         Postup:
 
-        1. Zjisti ``n = x.shape[0]`` a vytvor jeden generator
+1. Zjisti ``n = x.shape[0]`` a vytvor jeden generator
+
            ``rng = numpy.random.default_rng(self.random_state)`` (pouzivany
            napric vsemi iteracemi, aby se vzorky neopakovaly).
         2. ``self.n_bootstrap``-krat:
@@ -308,19 +332,32 @@ class Bootstrap(Validator):
             presne komplement jeho unikatnich hodnot.
         """
         # assert  Ověřte, že self.n_bootstrap je alespon 1
+        assert self.n_bootstrap >= 1, "Počet bootstrap iterací musí být alespoň 1"
+        n_samples = x.shape[0]
         # assert  Ověřte, že X.shape[0] > 0
-        raise NotImplementedError(
-            "Úkol: n_bootstrap-krat vyberte n train indexu s opakovanim; "
-            "out-of-bag (nevybrane) indexy jsou test. Viz docstring."
-        )
+        assert n_samples > 0, "Počet vzorků (řádků v x) musí být větší než 0"
+
+        rng = np.random.default_rng(self.random_state)
+        all_indices = np.arange(n_samples)
+
+        for _ in range(self.n_bootstrap):
+            # losování s opakováním
+            train_idx = rng.choice(n_samples, size=n_samples, replace=True)
+            # test_idx = ty indexy, které NEJSOU v unikatních indexech z train_idx
+            test_idx = np.setdiff1d(all_indices, np.unique(train_idx))
+
+            if test_idx.size == 0:
+                continue
+
+            yield train_idx, np.sort(test_idx)
 
 
 def cross_validate(
-    model: Any,
-    validator: Validator,
-    x: np.ndarray,
-    y: np.ndarray,
-    metric_fns: dict[str, Callable[[np.ndarray], float]],
+        model: Any,
+        validator: Validator,
+        x: np.ndarray,
+        y: np.ndarray,
+        metric_fns: dict[str, Callable[[np.ndarray], float]],
 ) -> dict:
     """Spusti model na vsech splitech dane strategie a agreguje metriky.
 
@@ -329,7 +366,8 @@ def cross_validate(
 
     Pro kazdou dvojici ``(train_idx, test_idx)`` z ``validator.split(x, y)``:
 
-    1. ``model.fit(x[train_idx], y[train_idx])`` — model se pred KAZDYM splitem
+1. ``model.fit(x[train_idx], y[train_idx])`` — model se pred KAZDYM splitem
+
        fituje ZNOVU od nuly. U kNN je "fit" jen ulozeni trenovacich dat (levne),
        takze opakovany fit nevadi; u drazsich modelu by to byl podstatny naklad.
     2. ``y_pred = model.predict(x[test_idx])``.

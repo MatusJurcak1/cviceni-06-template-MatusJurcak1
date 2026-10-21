@@ -19,15 +19,21 @@ Orientace tabulky (ZAVAZNA, shoduje se s
 
 kde radek = skutecnost, sloupec = predikce, index 1 = pozitivni = maligni:
 
-* TN (true negative)  — benigni spravne oznacen jako benigni,
-* FP (false positive) — benigni chybne oznacen jako maligni (falesny poplach),
-* FN (false negative) — maligni chybne oznacen jako benigni (PROPASNUTY nador),
-* TP (true positive)  — maligni spravne oznacen jako maligni.
+- TN (true negative)  — benigni spravne oznacen jako benigni,
+
+- FP (false positive) — benigni chybne oznacen jako maligni (falesny poplach),
+
+- FN (false negative) — maligni chybne oznacen jako benigni (PROPASNUTY nador),
+
+- TP (true positive)  — maligni spravne oznacen jako maligni.
+
 
 Terminologicke ekvivalence (ML slovnik vs. medicinsky slovnik):
 
-* ``recall = sensitivita = Se = TPR`` (true positive rate) = TP / (TP + FN),
-* ``specificita = Sp = TNR`` (true negative rate)          = TN / (TN + FP).
+- ``recall = sensitivita = Se = TPR`` (true positive rate) = TP / (TP + FN),
+
+- ``specificita = Sp = TNR`` (true negative rate)          = TN / (TN + FP).
+
 
 Se vs. Sp je kompromis: posun rozhodovaciho prahu, ktery zvysi Se
 (zachytime vic malignich), obvykle snizi Sp (vic falesnych poplachu) a naopak.
@@ -68,18 +74,29 @@ def confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray) -> np.ndarray:
 
     Poznamky
     --------
-    * TN = pocet dvojic ``(y_true == 0) & (y_pred == 0)``,
-    * FP = pocet dvojic ``(y_true == 0) & (y_pred == 1)``,
-    * FN = pocet dvojic ``(y_true == 1) & (y_pred == 0)``,
-    * TP = pocet dvojic ``(y_true == 1) & (y_pred == 1)``.
+- TN = pocet dvojic ``(y_true == 0) & (y_pred == 0)``,
+
+- FP = pocet dvojic ``(y_true == 0) & (y_pred == 1)``,
+
+- FN = pocet dvojic ``(y_true == 1) & (y_pred == 0)``,
+
+- TP = pocet dvojic ``(y_true == 1) & (y_pred == 1)``.
+
 
     Soucet vsech ctyr bunek je roven poctu vzorku.
     """
     # assert  Ověřte, že y_true a y_pred maji stejnou delku
+    assert y_true.shape[0] == y_pred.shape[0], "y_true a y_pred musí mít stejnou délku"
     # assert  Ověřte, že hodnoty jsou binarni (podmnozina {0, 1})
-    raise NotImplementedError(
-        "Úkol: sestavte 2x2 kontingecni tabulku [[TN, FP], [FN, TP]]; viz docstring."
-    )
+    assert set(np.unique(y_true)).issubset({0, 1}), "Hodnoty v y_true musí být pouze 0 a 1"
+    assert set(np.unique(y_pred)).issubset({0, 1}), "Hodnoty v y_pred musí být pouze 0 a 1"
+
+    TN = np.sum((y_true == 0) & (y_pred == 0))
+    FP = np.sum((y_true == 0) & (y_pred == 1))
+    FN = np.sum((y_true == 1) & (y_pred == 0))
+    TP = np.sum((y_true == 1) & (y_pred == 1))
+
+    return np.array([[TN, FP], [FN, TP]], dtype=int)
 
 
 def accuracy(cm: np.ndarray) -> float:
@@ -111,9 +128,13 @@ def accuracy(cm: np.ndarray) -> float:
     v klinickem kontextu sleduje hlavne recall/Se a specificita, ne accuracy.
     """
     # assert  Ověřte, že cm ma tvar (2, 2)
-    raise NotImplementedError(
-        "Úkol: vratte (TP + TN) / celkovy pocet vzorku; pri nulovem jmenovateli vratte 0.0."
-    )
+    assert cm.shape == (2, 2), "Kontingenční tabulka musí mít tvar (2, 2)"
+
+    TN, FP = cm[0, 0], cm[0, 1]
+    FN, TP = cm[1, 0], cm[1, 1]
+
+    denominator = TP + TN + FP + FN
+    return float((TP + TN) / denominator) if denominator > 0 else 0.0
 
 
 def precision(cm: np.ndarray) -> float:
@@ -144,9 +165,13 @@ def precision(cm: np.ndarray) -> float:
     propasnuty nador (nizky recall/Se).
     """
     # assert  Ověřte, že cm ma tvar (2, 2)
-    raise NotImplementedError(
-        "Úkol: vratte TP / (TP + FP); pri nulovem jmenovateli vratte 0.0."
-    )
+    assert cm.shape == (2, 2), "Kontingenční tabulka musí mít tvar (2, 2)"
+
+    FP = cm[0, 1]
+    TP = cm[1, 1]
+
+    denominator = TP + FP
+    return float(TP / denominator) if denominator > 0 else 0.0
 
 
 def recall_sensitivity(cm: np.ndarray) -> float:
@@ -178,9 +203,13 @@ def recall_sensitivity(cm: np.ndarray) -> float:
     snizuje specificitu (vic falesnych poplachu).
     """
     # assert  Ověřte, že cm ma tvar (2, 2)
-    raise NotImplementedError(
-        "Úkol: vratte TP / (TP + FN) (= recall = Se = TPR); pri nulovem jmenovateli vratte 0.0."
-    )
+    assert cm.shape == (2, 2), "Kontingenční tabulka musí mít tvar (2, 2)"
+
+    FN = cm[1, 0]
+    TP = cm[1, 1]
+
+    denominator = TP + FN
+    return float(TP / denominator) if denominator > 0 else 0.0
 
 
 def specificity(cm: np.ndarray) -> float:
@@ -211,9 +240,13 @@ def specificity(cm: np.ndarray) -> float:
     Se vs. Sp je kompromis: co zvysi jedno, obvykle snizi druhe.
     """
     # assert  Ověřte, že cm ma tvar (2, 2)
-    raise NotImplementedError(
-        "Úkol: vratte TN / (TN + FP) (= Sp = TNR); pri nulovem jmenovateli vratte 0.0."
-    )
+    assert cm.shape == (2, 2), "Kontingenční tabulka musí mít tvar (2, 2)"
+
+    TN = cm[0, 0]
+    FP = cm[0, 1]
+
+    denominator = TN + FP
+    return float(TN / denominator) if denominator > 0 else 0.0
 
 
 def f1_score(cm: np.ndarray) -> float:
@@ -248,6 +281,11 @@ def f1_score(cm: np.ndarray) -> float:
     vazenou variantu (F-beta s beta > 1).
     """
     # assert  Ověřte, že cm ma tvar (2, 2)
-    raise NotImplementedError(
-        "Úkol: vratte harmonicky prumer precision a recall; pri nulovem jmenovateli vratte 0.0."
-    )
+    assert cm.shape == (2, 2), "Kontingenční tabulka musí mít tvar (2, 2)"
+
+    FP = cm[0, 1]
+    FN = cm[1, 0]
+    TP = cm[1, 1]
+
+    denominator = (2 * TP) + FP + FN
+    return float((2 * TP) / denominator) if denominator > 0 else 0.0

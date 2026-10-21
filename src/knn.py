@@ -82,7 +82,8 @@ class KNNClassifier:
 
         Postup pro jeden dotazovany vzorek:
 
-        1. spocti vzdalenost ke vsem trenovacim bodum pres
+1. spocti vzdalenost ke vsem trenovacim bodum pres
+
            ``self.distance.calculate``,
         2. vyber ``k`` trenovacich vzorku s nejmensi vzdalenosti,
         3. vrat tridu, ktera se mezi temito ``k`` sousedy vyskytuje
@@ -90,10 +91,12 @@ class KNNClassifier:
 
         Reseni shod (ties)
         ------------------
-        * **Shoda v hlasovani:** ma-li nejvyssi pocet hlasu vic trid
+- **Shoda v hlasovani:** ma-li nejvyssi pocet hlasu vic trid
+
           zaroven, vrat tridu s NEJNIZSIM ciselnym oznacenim (napr. pri
           remize mezi tridou 0 a 1 vrat 0).
-        * **Shoda ve vzdalenosti k-teho souseda:** ma-li vice trenovacich
+- **Shoda ve vzdalenosti k-teho souseda:** ma-li vice trenovacich
+
           vzorku stejnou vzdalenost prave na hranici vyberu ``k`` nejblizsich,
           rozhoduje poradi indexu — prednost dostanou vzorky s nizsim
           indexem (stabilni razeni podle indexu v poli ``X_train_``).
@@ -111,11 +114,29 @@ class KNNClassifier:
             mnoziny trid jako ``y`` predane do ``fit``.
         """
         # assert  Ověřte, že model je nafitovan (self.x_train_ není None)
+        assert self.x_train_ is not None and self.y_train_ is not None, "Model ještě není nafitován. Zavolejte nejprve fit()."
         # assert  Ověřte, že x.shape[1] == self.x_train_.shape[1]
-        raise NotImplementedError(
-            "Úkol: pro kazdy radek x spoctete vzdalenost ke vsem trenovacim bodum "
-            "pres self.distance.calculate, vezmete k nejblizsich a vratte vetsinovy hlas."
-        )
+        assert x.shape[1] == self.x_train_.shape[
+            1], "Počet příznaků (sloupců) v dotazovaných datech se neshoduje s trénovacími daty."
+
+        n_queries = x.shape[0]
+        y_pred = np.zeros(n_queries, dtype=self.y_train_.dtype)
+
+        for i in range(n_queries):
+            # Spočítáme vzdálenosti ke všem trénovacím bodům
+            distances = np.array([
+                self.distance.calculate(x[i], x_train_pt) for x_train_pt in self.x_train_
+            ])
+
+            # Najdeme k nejbližších sousedů. kind='stable' zajistí stabilitu řazení -
+            # pokud mají vzorky stejnou vzdálenost, preferuje ten s nižším indexem.
+            k_indices = np.argsort(distances, kind='stable')[:self.k]
+            k_nearest_classes = self.y_train_[k_indices]
+
+            # Většinový hlas. np.bincount spočítá výskyty a np.argmax vrátí první index (nejnižší třídu) maxima.
+            y_pred[i] = np.argmax(np.bincount(k_nearest_classes))
+
+        return y_pred
 
     def save(self, path: str) -> None:
         """Ulozi nauceny model do souboru ``.npz`` (format NumPy).
@@ -138,15 +159,13 @@ class KNNClassifier:
             ``.npz`` automaticky, pokud v ceste chybi.
         """
         # assert  Ověřte, že model je nafitovan (self.x_train_ není None)
+        assert self.x_train_ is not None and self.y_train_ is not None, "Model nelze uložit, protože není nafitován."
         #
         # Ulozte pres np.savez(path, ...) tato tri pole:
         #   x_train = self.x_train_
         #   y_train = self.y_train_
         #   k       = np.asarray(self.k)
-        raise NotImplementedError(
-            "Úkol: ulozte self.x_train_, self.y_train_ a self.k do .npz souboru "
-            "pres np.savez(path, x_train=..., y_train=..., k=...)."
-        )
+        np.savez(path, x_train=self.x_train_, y_train=self.y_train_, k=np.asarray(self.k))
 
     # Zamerne NENI @classmethod (na rozdil od PCA.load v cviceni 05): kNN
     # potrebuje ke svemu behu injektovanou metriku Distance, ktera se do .npz
@@ -173,7 +192,13 @@ class KNNClassifier:
             ``.load(...).predict(...)``.
         """
         # assert  Ověřte, že soubor existuje a je validní .npz soubor
-        raise NotImplementedError(
-            "Úkol: nactete x_train, y_train a k z .npz souboru pres np.load(path) "
-            "a ulozte je do self.x_train_, self.y_train_ a self.k."
-        )
+        import os
+        assert os.path.exists(path) or os.path.exists(path + '.npz'), f"Soubor na cestě {path} neexistuje."
+
+        with np.load(path) as data:
+            assert 'x_train' in data and 'y_train' in data and 'k' in data, "Soubor .npz nemá platný formát (chybí klíče)."
+            self.x_train_ = data['x_train']
+            self.y_train_ = data['y_train']
+            self.k = int(data['k'])
+
+        return self
